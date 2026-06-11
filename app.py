@@ -196,13 +196,13 @@ with tab_register:
             key="template_img",
         )
 
-        st.markdown("**② 마스터 상품 목록 CSV 업로드** *(필수)*")
+        st.markdown("**② 마스터 상품 목록 CSV 업로드** *(선택)*")
         st.caption(
-            "품번·색상·사이즈로 상품코드를 조회하는 기준 파일입니다.  \n"
+            "품번·색상·사이즈로 내부 상품코드를 조회하는 파일입니다. 없으면 상품코드 컬럼이 빈칸으로 생성됩니다.  \n"
             "필수 컬럼: `품번`, `색상`, `사이즈`, `상품코드`"
         )
         master_csv = st.file_uploader(
-            "마스터 상품 목록 CSV",
+            "마스터 상품 목록 CSV (없으면 건너뛰기)",
             type=["csv"],
             key="master_csv",
         )
@@ -221,8 +221,6 @@ with tab_register:
             errors.append("업체 이름을 입력하세요.")
         if not template_img:
             errors.append("엑셀 양식 캡쳐본을 업로드하세요.")
-        if not master_csv:
-            errors.append("마스터 상품 목록 CSV를 업로드하세요.")
         if not api_key:
             errors.append("ANTHROPIC_API_KEY가 설정되지 않았습니다.")
 
@@ -239,11 +237,14 @@ with tab_register:
                         api_key=api_key,
                     )
 
-                    # 2) 마스터 CSV 저장
+                    # 2) 마스터 CSV 저장 (없으면 헤더만 있는 빈 파일 생성)
                     master_dir = BASE_DIR / "master_data"
                     master_dir.mkdir(exist_ok=True)
                     csv_path = master_dir / f"{new_key}_products.csv"
-                    csv_path.write_bytes(master_csv.getvalue())
+                    if master_csv:
+                        csv_path.write_bytes(master_csv.getvalue())
+                    else:
+                        csv_path.write_text("품번,색상,사이즈,상품코드\n", encoding="utf-8")
 
                     # 3) 업체 설정 저장 (parse_rules는 기본값 사용)
                     config = {
