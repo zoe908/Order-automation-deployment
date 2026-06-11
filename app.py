@@ -31,6 +31,7 @@ os.chdir(BASE_DIR)
 from main import convert
 from vendors import get_vendor_registry, save_json_vendor
 from core.vendor_setup import analyze_excel_screenshot
+from core.github_sync import push_file as github_push
 
 # ── 페이지 설정 ─────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -171,6 +172,21 @@ with tab_register:
             "Streamlit Cloud라면 *Settings → Secrets* 에, 로컬이라면 환경변수로 설정해주세요."
         )
 
+    # GitHub 자동 커밋 설정 확인
+    github_token = os.environ.get("GITHUB_TOKEN", "")
+    github_repo = os.environ.get("GITHUB_REPO", "")
+    try:
+        github_token = github_token or st.secrets.get("GITHUB_TOKEN", "")
+        github_repo = github_repo or st.secrets.get("GITHUB_REPO", "")
+    except Exception:
+        pass
+
+    if not github_token or not github_repo:
+        st.info(
+            "💡 **GitHub 자동 저장 미설정**: 등록한 업체가 앱 재시작 시 초기화될 수 있습니다.  \n"
+            "Streamlit Secrets에 `GITHUB_TOKEN` 과 `GITHUB_REPO` 를 추가하면 영구 저장됩니다."
+        )
+
     with st.form("vendor_register_form", clear_on_submit=False):
         col_key, col_name = st.columns(2)
         with col_key:
@@ -275,6 +291,26 @@ with tab_register:
                     }
 
                     save_json_vendor(new_key, config)
+
+                    # GitHub 자동 커밋 (설정된 경우)
+                    if github_token and github_repo:
+                        import json as _json
+                        json_bytes = _json.dumps(config, ensure_ascii=False, indent=2).encode("utf-8")
+                        github_push(
+                            token=github_token,
+                            repo=github_repo,
+                            file_path=f"vendors/configs/{new_key}.json",
+                            content_bytes=json_bytes,
+                            commit_message=f"feat: 업체 등록 - {new_name} ({new_key})",
+                        )
+                        if master_csv:
+                            github_push(
+                                token=github_token,
+                                repo=github_repo,
+                                file_path=f"master_data/{new_key}_products.csv",
+                                content_bytes=master_csv.getvalue(),
+                                commit_message=f"feat: 마스터 상품 목록 추가 - {new_key}",
+                            )
 
                     st.success(f"✅ 업체 **{new_name}** (`{new_key}`) 등록 완료!")
                     st.info("'발주서 변환' 탭에서 바로 사용할 수 있습니다.")
